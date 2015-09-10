@@ -1,0 +1,50 @@
+// grab the AWS plugin
+buildscript {
+    repositories {
+        maven { url 'https://plugins.gradle.org/m2/' }
+    }
+    dependencies {
+        classpath 'jp.classmethod.aws:gradle-aws-plugin:0.21.1'
+    }
+}
+apply plugin: 'jp.classmethod.aws.lambda'
+
+// build groovy AWS Lambda function
+apply plugin: 'groovy'
+
+repositories {
+    mavenCentral()
+}
+
+configurations {
+    provided
+    compile.extendsFrom provided
+}
+
+dependencies {
+    compile 'org.codehaus.groovy:groovy-all:2.4.4'
+    provided 'com.amazonaws:aws-lambda-java-core:1.0.0'
+}
+
+jar {
+    dependsOn configurations.runtime
+    from {
+        (configurations.runtime - configurations.provided).collect {
+            it.isDirectory() ? it : zipTree(it)
+        }
+    }
+}
+
+aws {
+    profileName = 'default'
+    region = 'us-west-2'
+}
+
+// migrate or create the function to AWS
+task migrate(type: jp.classmethod.aws.gradle.lambda.AWSLambdaMigrateFunctionTask, dependsOn: jar) {
+    functionName = 'groovy-lambda'
+    role = "arn:aws:iam::${aws.accountId}:role/lambda_basic_execution"
+    zipFile = jar.archivePath
+    handler = 'ca.redtoad.awslambda.LogMessage::run'
+    runtime = 'java8'
+}
